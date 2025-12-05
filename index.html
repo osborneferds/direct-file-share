@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickShare - Instant File Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Main Application Content -->
+    <div class="container">
+        <h1>QuickShare</h1>
+        <p>Upload a file and instantly get a shareable QR code.</p>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="userFile" id="userFile" required>
+            <button type="submit">Generate QR Code</button>
+        </form>
+        <div id="qrCodeContainer" class="qr-code-container"></div>
+        <div id="linkContainer" class="link-container"></div>
+        <p id="errorMessage" class="error-message"></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
