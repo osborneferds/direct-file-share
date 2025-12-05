@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickShare - Instant File Transfer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Main Application Content -->
+    <div class="container">
+        <h1>QuickShare</h1>
+        <p>Upload a file and instantly get a shareable QR code.</p>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <div id="dropZone" class="drop-zone">
+                <span class="drop-zone-prompt">Drag & Drop a file here, or click to select</span>
+                <input type="file" name="userFile" id="userFile" class="drop-zone-input" required>
+            </div>
+            <button type="submit">Generate QR Code</button>
+        </form>
+        <div id="imagePreviewContainer" class="image-preview-container" style="display: none;">
+            <img id="imagePreview" class="image-preview" src="#" alt="Image Preview">
+        </div>
+        <div id="progressContainer" class="progress-container" style="display: none;">
+            <div class="progress-wrapper">
+                <div id="progressBar" class="progress-bar">0%</div>
+            </div>
+            <button id="cancelButton" class="cancel-button">&times;</button>
+        </div>
+        <div id="qrCodeContainer" class="qr-code-container"></div>
+        <div id="linkContainer" class="link-container" style="display: none;">
+            <a id="downloadLink" class="download-link" href="#" target="_blank"></a>
+            <button id="copyButton" class="copy-button">Copy</button>
+        </div>
+        <p id="errorMessage" class="error-message"></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
