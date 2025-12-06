@@ -15,68 +15,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelButton = document.getElementById('cancelButton');
     const submitButton = uploadForm.querySelector('button');
 
-    // Variable to hold the request so we can cancel it
     let currentXhr = null;
 
     // --- Drag and Drop Logic ---
-
-    // Make the drop zone clickable to trigger the file input
-    dropZone.addEventListener('click', () => {
-        userFile.click();
-    });
-
-    // Add visual feedback when dragging over
+    dropZone.addEventListener('click', () => userFile.click());
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('drag-over');
     });
 
-    // Remove visual feedback when leaving the drop zone
     ['dragleave', 'dragend'].forEach(type => {
-        dropZone.addEventListener(type, () => {
-            dropZone.classList.remove('drag-over');
-        });
+        dropZone.addEventListener(type, () => dropZone.classList.remove('drag-over'));
     });
 
-    // Handle the file drop
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('drag-over');
-
-        // If files were dropped, assign them to the input field
         if (e.dataTransfer.files.length) {
             userFile.files = e.dataTransfer.files;
-            // Trigger the change event manually to show preview
             userFile.dispatchEvent(new Event('change'));
         }
     });
 
     // --- File Input Change (for preview) ---
     userFile.addEventListener('change', () => {
-        // Clear any existing preview
         imagePreviewContainer.style.display = 'none';
         imagePreview.src = '#';
-        
         if (userFile.files && userFile.files[0]) {
             const file = userFile.files[0];
-
-            // Update the drop zone text to show the selected filename
             dropZonePrompt.textContent = file.name;
             dropZone.classList.add('has-file');
-
-            // Check if the selected file is an image
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
-
                 reader.onload = (e) => {
                     imagePreview.src = e.target.result;
                     imagePreviewContainer.style.display = 'block';
                 };
-
                 reader.readAsDataURL(file);
             }
         } else {
-            // No file selected, reset the prompt
             dropZonePrompt.textContent = 'Drag & Drop a file here, or click to select';
             dropZone.classList.remove('has-file');
         }
@@ -86,29 +63,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleUpload = (event) => {
         event.preventDefault();
 
-        // Clear previous results and errors.
+        // Clear previous results and errors
         qrCodeContainer.innerHTML = '';
         progressContainer.style.display = 'none';
         linkContainer.style.display = 'none';
         errorMessage.textContent = '';
 
-        // Check if a file is selected.
+        // Check if a file is selected
         if (!userFile.files || userFile.files.length === 0) {
             errorMessage.textContent = 'Please select a file to upload.';
             return;
         }
 
-        // 2. Create a FormData object to send the file.
+        // Check file size (example: limit to 5MB)
+        const file = userFile.files[0];
+        if (file.size > 5 * 1024 * 1024) {
+            errorMessage.textContent = 'File is too large. Max size is 5MB.';
+            return;
+        }
+
+        // Create a FormData object
         const formData = new FormData();
-        formData.append('userFile', userFile.files[0]);
+        formData.append('userFile', file);
 
         // Provide user feedback during upload
         submitButton.disabled = true;
         submitButton.textContent = 'Uploading...';
 
-        // 3. Use XMLHttpRequest to handle upload and track progress.
+        // Create XMLHttpRequest to handle the upload and track progress
         const xhr = new XMLHttpRequest();
-        currentXhr = xhr; // Store the request
+        currentXhr = xhr;
 
         // Listen for progress events
         xhr.upload.addEventListener('progress', (event) => {
@@ -120,46 +104,47 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Listen for upload completion
+        // Listen for successful upload completion
         xhr.addEventListener('load', () => {
-            // Always re-enable the button and restore its text
             submitButton.disabled = false;
-            currentXhr = null; // Clear the stored request
+            currentXhr = null;
             submitButton.textContent = 'Generate QR Code';
 
             try {
                 const result = JSON.parse(xhr.responseText);
-
                 if (xhr.status < 200 || xhr.status >= 300) {
                     throw new Error(result.error || 'An unknown error occurred.');
                 }
 
-                // Construct the full, correct URL on the client side.
                 const fullDownloadUrl = `${window.location.origin}${result.downloadUrl}`;
-
-                // Hide the preview now that the upload is complete
                 imagePreviewContainer.style.display = 'none';
 
-                // 4. On success, generate and display the QR code.
+                // Generate and display the QR code
                 const qr = qrcode(0, 'L');
                 qr.addData(fullDownloadUrl);
                 qr.make();
 
-                // Use createSvgTag for a more reliable and scalable QR code.
                 const qrCodeElement = qr.createSvgTag({ cellSize: 6, margin: 4 });
-                qrCodeContainer.appendChild(qrCodeElement);
+                if (qrCodeElement) {
+                    qrCodeContainer.appendChild(qrCodeElement);
+                } else {
+                    errorMessage.textContent = 'QR code generation failed.';
+                }
 
                 // Display the link and copy button
                 downloadLink.href = fullDownloadUrl;
                 downloadLink.textContent = fullDownloadUrl;
                 linkContainer.style.display = 'flex';
 
-                copyButton.textContent = 'Copy'; // Reset button text
+                copyButton.textContent = 'Copy';
                 copyButton.onclick = () => {
                     navigator.clipboard.writeText(fullDownloadUrl).then(() => {
                         copyButton.textContent = 'Copied!';
                         setTimeout(() => { copyButton.textContent = 'Copy'; }, 2000);
-                    }).catch(err => console.error('Failed to copy link:', err));
+                    }).catch(err => {
+                        console.error('Failed to copy link:', err);
+                        errorMessage.textContent = 'Failed to copy the link.';
+                    });
                 };
             } catch (error) {
                 console.error('Upload failed:', error);
@@ -170,12 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Listen for upload errors
         xhr.addEventListener('error', () => {
             submitButton.disabled = false;
-            submitButton.textContent = 'Generate QR Code';
+            submitButton.textContent = 'Retry Upload';
             currentXhr = null;
             errorMessage.textContent = 'Upload failed. A network error occurred.';
         });
 
-        // Listen for cancellation
+        // Listen for upload cancellation
         xhr.addEventListener('abort', () => {
             submitButton.disabled = false;
             submitButton.textContent = 'Generate QR Code';
@@ -188,11 +173,18 @@ document.addEventListener('DOMContentLoaded', () => {
         xhr.open('POST', '/upload', true);
         xhr.send(formData);
     };
-    
+
+    // Bind form submission
     uploadForm.addEventListener('submit', handleUpload);
+
+    // Cancel button event to abort the upload
     cancelButton.addEventListener('click', () => {
         if (currentXhr) {
             currentXhr.abort();
         }
+        submitButton.disabled = false;
+        submitButton.textContent = 'Generate QR Code';
+        progressContainer.style.display = 'none';
+        errorMessage.textContent = 'Upload cancelled.';
     });
 });
