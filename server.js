@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs').promises; // Using promises for cleaner async code
+const fs = require('fs').promises;
 const crypto = require('crypto');
 const cron = require('node-cron');
 const cors = require('cors');
@@ -9,118 +9,102 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- Configuration ---
-const UPLOADS_DIR = 'uploads';
-const MAX_FILE_AGE_HOURS = 24; // Files older than this will be deleted.
-const MAX_FILE_AGE_MS = MAX_FILE_AGE_HOURS * 60 * 60 * 1000;
+// ---- CONFIG ----
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const MAX_FILE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// --- Multer Configuration ---
-// This configures how files are stored.
+// ---- MULTER CONFIG ----
 const storage = multer.diskStorage({
-    // 1. Set the destination for uploaded files.
-    destination: (req, file, cb) => {
-        cb(null, UPLOADS_DIR);
-    },
-    // 2. Generate a unique filename to avoid overwriting files.
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
     filename: (req, file, cb) => {
-        // Use a random string + original extension for the new filename.
-        const randomString = crypto.randomBytes(8).toString('hex');
-        const extension = path.extname(file.originalname);
-        cb(null, `${Date.now()}-${randomString}${extension}`);
+        const random = crypto.randomBytes(8).toString('hex');
+        const ext = path.extname(file.originalname);
+        cb(null, `${Date.now()}-${random}${ext}`);
     }
 });
 
-// Initialize multer with the storage configuration.
-const upload = multer({ storage: storage });
+const allowedExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt'];
 
-// --- Middleware ---
+const upload = multer({
+    storage,
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter(req, file, cb) {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!allowedExtensions.includes(ext)) {
+            return cb(new Error('Invalid file type.'));
+        }
+        cb(null, true);
+    }
+});
 
-// 0. Enable CORS for all routes
+// ---- MIDDLEWARE ----
 app.use(cors());
-
-// 1. Serve static files from the 'public' directory (HTML, CSS, client-side JS).
 app.use(express.static('public'));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
-// 2. Serve uploaded files from the 'uploads' directory.
-// This makes files accessible via URLs like http://localhost:3000/uploads/filename.jpg
-app.use(`/${UPLOADS_DIR}`, express.static(UPLOADS_DIR));
-
-// --- Scheduled Cleanup Job ---
-
-/**
- * Scans the uploads directory and deletes files older than MAX_FILE_AGE_MS.
- */
+// ---- CLEANUP JOB ----
 const cleanupOldFiles = async () => {
-    console.log('Running scheduled job: Deleting old files...');
+    console.log('Running cleanup job...');
     try {
         const files = await fs.readdir(UPLOADS_DIR);
 
         for (const file of files) {
-            // Ignore hidden files like .gitkeep
             if (file.startsWith('.')) continue;
 
             const filePath = path.join(UPLOADS_DIR, file);
+
             try {
                 const stats = await fs.stat(filePath);
-                const fileAge = Date.now() - stats.birthtimeMs;
 
-                if (fileAge > MAX_FILE_AGE_MS) {
+                // SAFER than birthtimeMs
+                const age = Date.now() - stats.mtimeMs;
+
+                if (age > MAX_FILE_AGE_MS) {
                     await fs.unlink(filePath);
                     console.log(`Deleted old file: ${file}`);
                 }
             } catch (err) {
-                // This can happen if the file is deleted between readdir and stat
-                console.error(`Could not process file ${file}:`, err.message);
+                console.error(`Error processing ${file}:`, err.message);
             }
         }
     } catch (err) {
-        console.error('Error reading uploads directory for cleanup:', err);
+        console.error('Cleanup error:', err.message);
     }
 };
 
-// Schedule the cleanup job to run once every hour.
-// Cron format: 'minute hour day-of-month month day-of-week'
+// Run cleanup every hour
 cron.schedule('0 * * * *', cleanupOldFiles);
 
-// --- API Routes ---
+// ---- UPLOAD ROUTE ----
+app.post('/upload', (req, res) => {
+    upload.single('userFile')(req, res, (err) => {
 
-// POST /upload - The endpoint for handling file uploads.
-// 'userFile' must match the 'name' attribute of the <input type="file"> in your HTML form.
-app.post('/upload', upload.single('userFile'), (req, res) => {
-    // If multer fails or no file is provided, req.file will be undefined.
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file was uploaded.' });
-    }
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
 
-    // The file was successfully uploaded.
-    // req.file contains information about the uploaded file.
-    console.log('File uploaded successfully:', req.file.filename);
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
 
-    // Respond with the relative URL to the uploaded file.
-    // The client-side script will combine this with the window origin to create a full URL.
-    res.status(200).json({
-        downloadUrl: `/${UPLOADS_DIR}/${req.file.filename}`
+        res.status(200).json({
+            downloadUrl: `/uploads/${req.file.filename}`
+        });
     });
 });
 
-/**
- * Initializes the application by ensuring the uploads directory exists
- * and then starts the Express server.
- */
-const startServer = async () => {
+// ---- START SERVER ----
+(async () => {
     try {
-        // Ensure the uploads directory exists before starting.
         await fs.mkdir(UPLOADS_DIR, { recursive: true });
-        console.log(`'${UPLOADS_DIR}' directory is ready.`);
+        console.log('Uploads directory ready.');
 
         app.listen(PORT, () => {
-            console.log(`Server is running on http://localhost:${PORT}`);
-            cleanupOldFiles(); // Run initial cleanup.
+            console.log(`Server running at http://localhost:${PORT}`);
+            cleanupOldFiles(); // initial cleanup
         });
-    } catch (error) {
-        console.error(`Failed to start server: ${error.message}`);
-        process.exit(1); // Exit if we can't create the directory.
+    } catch (err) {
+        console.error('Failed to start server:', err.message);
+        process.exit(1);
     }
-};
-
-startServer();
+})();
