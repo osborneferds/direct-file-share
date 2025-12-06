@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>QuickShare — Upload & QR Download</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>QuickShare</h1>
+      <p class="tagline">Upload from one device — scan QR to download on another. Files auto-delete after download or 10 minutes.</p>
+    </header>
+
+    <section class="card upload-card">
+      <form id="uploadForm">
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" name="file" />
+          <div class="dz-text">
+            <strong>Click or drop a file</strong>
+            <div class="muted">Max size: 100 MB (configurable)</div>
+          </div>
+        </label>
+
+        <div class="controls">
+          <button type="submit" class="btn primary">Upload file</button>
+          <div id="status" class="muted"></div>
+        </div>
+      </form>
+    </section>
+
+    <section class="card result-card hidden" id="resultCard">
+      <h2>Download ready</h2>
+      <div class="result-grid">
+        <div class="qr-area">
+          <img id="qrImg" alt="QR code" />
+          <div class="muted">Scan this with another device’s camera or QR app</div>
+        </div>
+        <div class="meta-area">
+          <p><strong id="fileName"></strong></p>
+          <p id="fileSize" class="muted"></p>
+          <p class="muted">Expires at: <span id="expiresAt"></span></p>
+          <div class="links">
+            <a id="downloadLink" class="btn" target="_blank" rel="noopener">Open download link</a>
+            <button id="copyBtn" class="btn">Copy link</button>
+          </div>
+          <p class="muted tiny">After the download completes, the file becomes unavailable.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot muted">
+      Made with ♥ — minimal, fast & private.
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
